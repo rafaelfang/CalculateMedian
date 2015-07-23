@@ -1,30 +1,63 @@
 package edu.missouri.hadoop;
 
+import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
-
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
-public class GetMedianReducer extends Reducer<Text, Text, Text, Text> {
-	
+public class GetMedianReducer extends Reducer<DoubleWritable, IntWritable, Text, Text> {
+
+	private int size = 0;
+	private HashMap<Double, Integer> hm = new HashMap<Double, Integer>();
+
 	@Override
-	public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+	public void reduce(DoubleWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
 
-		Iterator<Text> it = values.iterator();
-		
-		String tempKey;
-		String tempVal;
-		
+		int total = 0;
+		Iterator<IntWritable> it = values.iterator();
+
 		while (it.hasNext()) {
-			String tempStrArr[] = it.next().toString().split(",");
-			tempKey=tempStrArr[0];
-			tempVal=tempStrArr[1];
-			
+			int temp = it.next().get();
+			size += temp;
+			total += temp;
 		}
-		
-		totalWordCount.set(wordCount);
-		context.write(key, totalWordCount);
+		hm.put(key.get(), total);
+	}
+
+	@Override
+	public void cleanup(Context context) throws IOException, InterruptedException
+	{
+		Iterator it = hm.entrySet().iterator();
+		int total = 0;
+		double for_two = 0;
+		boolean isOne = true;
+
+		while (it.hasNext()) {
+			Map.Entry<Double, Integer> pair = (Map.Entry)it.next();
+			total += pair.getValue();
+			if (total > size / 2) {
+				context.write(new Text(pair.getKey().toString()), new Text("median"));
+				break;
+			} else if (total == size / 2) {
+				if (size % 2 == 0) {
+					context.write(new Text(pair.getKey().toString()), new Text("median"));
+					break;
+				}
+				else {
+					for_two += pair.getKey();
+					if (isOne)
+						continue;
+					else {
+						context.write(new Text(Double.toString(for_two / 2)), new Text("median"));
+						break;
+					}
+				}
+			}
+		}
+		context.write(new Text("The size is: "), new Text(Integer.toString(size)));
 	}
 }
